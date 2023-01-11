@@ -82,7 +82,7 @@ class AulaDb {
     // Actualizamos a un alumno (Nombre y Nota) segun su ID
     fun update(item: Int, alumno: Alumno): Boolean {
         lock.withLock {
-            while (escritor){
+            while (escritor) {
                 obtenerAlumnos.await()
             }
             lector.incrementAndGet()
@@ -106,7 +106,7 @@ class AulaDb {
     // Borramos a un alumno segun su ID
     fun delete(item: Int): Boolean {
         lock.withLock {
-            while (escritor){
+            while (escritor) {
                 obtenerAlumnos.await()
             }
             lector.incrementAndGet()

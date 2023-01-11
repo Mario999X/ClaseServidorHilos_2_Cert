@@ -9,6 +9,6 @@ data class Response<T>(
 
 ) {
     enum class Type {
-        OK, ERROR
+        OK, ERROR, TOKEN_EXPIRED
     }
 }

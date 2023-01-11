@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 data class Usuario(
     val nombre: String,
     val rol: TipoUser?,
-    var password: ByteArray,
+    val password: ByteArray,
     var id: Int = 0
 ) {
     enum class TipoUser(val rol: String) {

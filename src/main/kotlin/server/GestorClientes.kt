@@ -18,51 +18,56 @@ import javax.net.ssl.SSLSocket
 private val log = KotlinLogging.logger {}
 private val json = Json
 
-class GestorClientes(private val cliente: SSLSocket, private val usersDb: UsersDb, private val aulaDb: AulaDb) : Runnable {
+class GestorClientes(private val cliente: SSLSocket, private val usersDb: UsersDb, private val aulaDb: AulaDb) :
+    Runnable {
 
     // Preparamos los canales de entrada-salida
     private val salida = DataOutputStream(cliente.outputStream)
     private val entrada = DataInputStream(cliente.inputStream)
 
+    // Preparo un Boolean que se volvera True si el Token ha caducado, lo que enviara el response adecuado al usuario
+    private var tokenExpired = false
+
     override fun run() {
         val request = lecturaRequest() // Leemos el request y actuamos segun el tipo que sea
-        val permisos = comprobarTipoUser(request) // Comprobamos el tipo se usuario con el token
+        val permisos = comprobarToken(request) // Comprobamos el tipo se usuario con el token
 
-        when (request.type) {
-            Request.Type.GET_TOKEN -> {
-                enviarToken(request)
+        if (!tokenExpired) {
+            when (request.type) {
+                Request.Type.GET_TOKEN -> {
+                    enviarToken(request)
+                }
+
+                Request.Type.ADD -> {
+                    agregarAlumno(request, permisos)
+                }
+
+                Request.Type.UPDATE -> {
+                    modificarAlumno(request, permisos)
+                }
+
+                Request.Type.DELETE -> {
+                    eliminarAlumno(request, permisos)
+                }
+
+                Request.Type.CONSULT -> {
+                    consultarAlumnos() // El unico que no necesita permisos
+                }
             }
-
-            Request.Type.ADD -> {
-                agregarAlumno(request, permisos)
-            }
-
-            Request.Type.UPDATE -> {
-                modificarAlumno(request, permisos)
-            }
-
-            Request.Type.DELETE -> {
-                eliminarAlumno(request, permisos)
-            }
-
-            Request.Type.CONSULT -> {
-                consultarAlumnos() // El unico que no necesita que comprobemos los permisos es el de consulta
-            }
-
-        }
+        } else tokenExpiredSignal()
 
         cliente.close()
     }
 
     private fun consultarAlumnos() {
-        log.debug { "Consultando alumnos" }
+        log.debug { "\tConsultando alumnos" }
 
         val response = Response(aulaDb.getAll().values.toList().toString(), Response.Type.OK)
         salida.writeUTF(json.encodeToString(response) + "\n")
     }
 
     private fun eliminarAlumno(request: Request<Alumno>, permisos: Boolean) {
-        log.debug { "Eliminando alumno" }
+        log.debug { "\tEliminando alumno" }
 
         val response = if (!permisos) {
             log.debug { "No tiene permisos para esta operacion" }
@@ -79,7 +84,7 @@ class GestorClientes(private val cliente: SSLSocket, private val usersDb: UsersD
     }
 
     private fun modificarAlumno(request: Request<Alumno>, permisos: Boolean) {
-        log.debug { "Actualizando alumno" }
+        log.debug { "\tActualizando alumno" }
 
         if (!permisos) {
             log.debug { "No tiene permisos para esta operacion" }
@@ -97,7 +102,7 @@ class GestorClientes(private val cliente: SSLSocket, private val usersDb: UsersD
     }
 
     private fun agregarAlumno(request: Request<Alumno>, permisos: Boolean) {
-        log.debug { "Procesando alumno" }
+        log.debug { "\tProcesando alumno" }
 
         val response = if (!permisos) {
             log.debug { "No tiene permisos para esta operacion" }
@@ -111,17 +116,28 @@ class GestorClientes(private val cliente: SSLSocket, private val usersDb: UsersD
         salida.writeUTF(json.encodeToString(response) + "\n")
     }
 
-    private fun comprobarTipoUser(request: Request<Alumno>): Boolean {
+    private fun tokenExpiredSignal() {
+        log.debug { "Token caducado" }
+
+        val response = Response("Token caducado, inice sesion de nuevo", Response.Type.TOKEN_EXPIRED)
+        salida.writeUTF(json.encodeToString(response) + "\n")
+    }
+
+    private fun comprobarToken(request: Request<Alumno>): Boolean {
         log.debug { "Comprobando token..." }
 
         var funcionDisponible = true
 
         val token = request.token?.let { ManejadorTokens.decodeToken(it) }
-        //println(token?.getClaim("rol"))
-        //println(Usuario.TipoUser.USER.rol)
 
-        if (!token?.getClaim("rol").toString().contains(Usuario.TipoUser.ADMIN.rol)) {
-            funcionDisponible = false
+        if (token != null) {
+            //println(token?.getClaim("rol"))
+            //println(Usuario.TipoUser.USER.rol)
+            if (token.getClaim("rol").toString().contains(Usuario.TipoUser.USER.rol)) {
+                funcionDisponible = false
+            }
+        } else if (request.type != Request.Type.GET_TOKEN) {
+            tokenExpired = true
         }
 
         return funcionDisponible
@@ -130,7 +146,7 @@ class GestorClientes(private val cliente: SSLSocket, private val usersDb: UsersD
     private fun enviarToken(request: Request<Alumno>) {
         log.debug { "Procesando token..." }
 
-        val user = usersDb.login(request.content!!.nombre, request.content2!!.nombre)
+        val user = usersDb.login(request.content!!.nombre, request.content2!!)
 
         val responseToken = if (user == null) {
 

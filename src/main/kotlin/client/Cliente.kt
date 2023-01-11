@@ -124,6 +124,8 @@ private fun solicitud() {
 
         val response = responseSolicitud.content
         log.debug { "Respuesta del servidor: $response" }
+
+        if (responseSolicitud.type == Response.Type.TOKEN_EXPIRED) token = null
     }
 
 }
@@ -149,7 +151,7 @@ private fun solicitarToken(): String? {
     val receiveResponse = DataInputStream(servidor.inputStream)
 
     // cutre, yep.
-    request = Request(null, Alumno(data1), Alumno(data2), Request.Type.GET_TOKEN)
+    request = Request(null, Alumno(data1), data2, Request.Type.GET_TOKEN)
     sendRequest.writeUTF(json.encodeToString(request) + "\n")
     log.debug { "Se envio $request" }
 
