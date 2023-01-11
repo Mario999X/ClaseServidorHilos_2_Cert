@@ -10,8 +10,10 @@ import mu.KotlinLogging
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File
+import java.math.BigInteger
 import java.net.InetAddress
 import java.nio.file.Paths
+import java.security.cert.X509Certificate
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
@@ -85,11 +87,11 @@ private fun solicitud() {
         }
 
         3 -> {
-            log.debug { "\tIntroduzca el ID del alumno a actualizar: "}
+            log.debug { "\tIntroduzca el ID del alumno a actualizar: " }
             val id = readln().toInt()
-            log.debug { "\tIntroduzca el NOMBRE nuevo del alumno: "}
+            log.debug { "\tIntroduzca el NOMBRE nuevo del alumno: " }
             val nombre = readln()
-            log.debug { "\tIntroduzca la NOTA nueva del alumno: "}
+            log.debug { "\tIntroduzca la NOTA nueva del alumno: " }
             val nota = readln().toInt()
 
             val alumno = Alumno(nombre, nota, id)
@@ -183,4 +185,33 @@ private fun prepararConexion() {
     direccion = InetAddress.getLocalHost()
     clienteFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
     servidor = clienteFactory.createSocket(direccion, PUERTO) as SSLSocket
+
+    informacionSesion(servidor)
+}
+
+private fun informacionSesion(servidor: SSLSocket) {
+    val sesion = servidor.session
+    // SERVIDOR
+    println(
+        """
+        -Servidor: ${sesion.peerHost}
+        -Cifrado: ${sesion.cipherSuite}
+        -Protocolo: ${sesion.protocol}
+        -IDentificador: ${BigInteger(sesion.id)}
+        -Creacion de la sesion: ${sesion.creationTime}
+        
+    """.trimIndent()
+    )
+    // CERTIFICADO
+    val certificado = sesion.peerCertificates[0] as X509Certificate
+    println(
+        """
+        -Propietario: ${certificado.subjectX500Principal}
+        -Algoritmo: ${certificado.sigAlgName}
+        -Tipo: ${certificado.type}
+        -Emisor: ${certificado.issuerX500Principal}
+        -Numero de serie: ${certificado.serialNumber}
+        
+    """.trimIndent()
+    )
 }
